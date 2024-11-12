@@ -1,29 +1,30 @@
-#[allow(dead_code)]
 #[derive(Debug, serde::Deserialize)]
-struct ParseResponse {
-    parse: DisplayTitle,
+struct Response {
+    parse: ParseResponse,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, serde::Deserialize)]
-struct DisplayTitle {
-    title: String,
-    pageid: u64,
-    displaytitle: String,
+struct ParseResponse {
+    sections: Vec<Section>
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct Section {
+    line: String,
+    number: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let url = "https://en.wikipedia.org/w/api.php\
-               ?action=parse\
-               &format=json\
-               &page=Rust_(programming_language)\
-               &prop=displaytitle\
-               &formatversion=2";
-    let resp = reqwest::get(url)
+               ?action=parse&format=json&prop=sections\
+               &page=Rust_(programming_language)";
+    let response = reqwest::get(url)
         .await?
-        .json::<ParseResponse>()
+        .json::<Response>()
         .await?;
-    println!("{resp:#?}");
+    for section in &response.parse.sections {
+        println!("{:6} {}", section.number, section.line);
+    }
     Ok(())
 }
