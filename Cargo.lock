@@ -805,6 +805,7 @@ name = "reqwest-wikipedia"
 version = "0.1.0"
 dependencies = [
  "reqwest",
+ "serde",
  "tokio",
 ]
 
