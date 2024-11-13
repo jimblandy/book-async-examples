@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .json::<Response>()
         .await?;
     for section in &response.parse.sections {
-        println!("{:6} {}", section.number, section.line);
+        println!("{:10} {}", section.number, section.line);
     }
     Ok(())
 }
