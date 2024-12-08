@@ -1,9 +1,10 @@
-[package]
-name = "reqwest-wikipedia"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = [
+  "explicit-futures",
+  "mock-wikipedia-api",
+  "reqwest-wikipedia",
+  "reqwest-wikipedia-parsed",
+  "wikipedia-reachable",
+]
 
-[dependencies]
-serde = { version = "1", features = ["derive"] }
-reqwest = { version = "0.12", features = ["json"] }
-tokio = { version = "1.41", features = ["full"] }
+resolver = "2"
