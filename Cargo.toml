@@ -2,6 +2,7 @@
 members = [
   "explicit-futures",
   "mock-wikipedia-api",
+  "recursive",
   "reqwest-wikipedia",
   "reqwest-wikipedia-parsed",
   "wikipedia-reachable",
