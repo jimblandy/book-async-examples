@@ -4,7 +4,11 @@ pub async fn recur(depth: usize) {
     if depth == 0 {
         return;
     }
-    spawn(recur(depth - 1));
+    spawn_recur(depth - 1);
+}
+
+fn spawn_recur(depth: usize) {
+    spawn(recur(depth))
 }
 
 pub fn spawn(_future: impl Future + Send + 'static) { }
