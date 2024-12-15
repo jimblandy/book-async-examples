@@ -88,18 +88,30 @@ struct Link {
     title: String,
 }
 
-fn parse(_page: String, _format: Format, _prop: Prop) -> http::Result<http::Response<String>> {
+fn parse(page: String, _format: Format, _prop: Prop) -> http::Result<http::Response<String>> {
+    fn link(title: String) -> Link {
+        Link {
+            ns: 0,
+            exists: Some("".to_string()),
+            title,
+        }
+    }
+    let pageid = {
+        use std::hash::Hash as _;
+        use std::hash::Hasher as _;
+        let mut s = std::hash::DefaultHasher::new();
+        page.hash(&mut s);
+        s.finish()
+    };
     let answer = Answer {
         parse: ParseAnswer {
-            title: "Yahoo!".to_string(),
-            pageid: 1729,
-            links: vec![
-                Link {
-                    ns: 0,
-                    exists: Some("".to_string()),
-                    title: "Blort".to_string()
-                }
-            ],
+            title: page.clone(),
+            pageid,
+            links: (1..6)
+                .map(|i| {
+                    link(format!("{page}-{i}"))
+                })
+                .collect(),
         }
     };
     http::Response::builder()
