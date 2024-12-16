@@ -89,6 +89,12 @@ struct Link {
 }
 
 fn parse(page: String, _format: Format, _prop: Prop) -> http::Result<http::Response<String>> {
+    if page == "Rust (programming language)-1-2" {
+        return http::Response::builder()
+            .status(http::StatusCode::NOT_FOUND)
+            .body("Injected NOT_FOUND, for testing".to_string());
+    }
+
     fn link(title: String) -> Link {
         Link {
             ns: 0,

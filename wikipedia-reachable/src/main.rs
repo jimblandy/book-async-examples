@@ -9,7 +9,7 @@ async fn main() -> Result<()> {
     let seen = Arc::new(Mutex::new(HashSet::new()));
     let start = "Rust (programming language)".to_string();
 
-    add_reachable(start.clone(), Arc::clone(&seen), 2).await?;
+    add_reachable(start.clone(), Arc::clone(&seen), 3).await?;
 
     let arc_contents = Arc::into_inner(seen).unwrap();
     let mutex_contents = arc_contents.into_inner();
@@ -94,7 +94,11 @@ async fn page_links(page: &str) -> Result<Vec<String>> {
                        &page={page}"
     );
     eprintln!("Query: {url}");
-    let response: Response = reqwest::get(url).await?.json().await?;
+    let response = reqwest::get(url)
+        .await?
+        .error_for_status()?
+        .json::<Response>()
+        .await?;
     match response {
         Response::Error(ErrorResponse { info }) => {
             anyhow::bail!("{info}")
