@@ -6,60 +6,93 @@ use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let seen = Arc::new(Mutex::new(HashSet::new()));
+    let traversal = Arc::new(Traversal::new());
+
     let start = "Rust (programming language)".to_string();
+    Arc::clone(&traversal).visit(start.clone(), 3).await?;
+    let traversal = Arc::into_inner(traversal).unwrap();
 
-    add_reachable(start.clone(), Arc::clone(&seen), 3).await?;
+    let seen = traversal.seen.into_inner();
+    let mut sorted = Vec::from_iter(seen.into_iter());
+    sorted.sort();
+    for page in sorted {
+        println!("{page}");
+    }
 
-    let arc_contents = Arc::into_inner(seen).unwrap();
-    let mutex_contents = arc_contents.into_inner();
-    let mut pages = Vec::from_iter(mutex_contents);
-    pages.sort();
-
-    println!("Pages reachable from {start}:");
-    for page in pages {
-        println!("  {page}");
+    let errors = traversal.errors.into_inner();
+    if !errors.is_empty() {
+        for error in &errors {
+            eprintln!("{error}");
+        }
+        anyhow::bail!("Errors occurred during traversal");
     }
 
     Ok(())
 }
 
-async fn add_reachable(
-    page: String,
-    seen: Arc<Mutex<HashSet<String>>>,
-    depth: usize,
-) -> Result<()> {
-    if !seen.lock().await.insert(page.clone()) {
-        return Ok(());
-    }
+/// A traversal of Wikipedia, starting from a given page.
+struct Traversal {
+    /// Titles of pages we have already visited.
+    seen: Mutex<HashSet<String>>,
 
-    if depth == 0 {
-        return Ok(());
-    }
-
-    let links = page_links(&page).await?;
-    let subtasks = links
-        .into_iter()
-        .map(|outgoing_link| {
-            let seen = Arc::clone(&seen);
-            spawn_add_reachable(outgoing_link, seen, depth - 1)
-        })
-        .collect::<Vec<_>>();
-
-    for subtask in subtasks {
-        subtask.await??;
-    }
-
-    Ok(())
+    /// Errors we've encountered when sending queries to Wikipedia.
+    errors: Mutex<Vec<anyhow::Error>>,
 }
 
-fn spawn_add_reachable(
-    page: String,
-    seen: Arc<Mutex<HashSet<String>>>,
-    depth: usize,
-) -> tokio::task::JoinHandle<Result<()>> {
-    tokio::task::spawn(add_reachable(page, seen, depth))
+impl Traversal {
+    fn new() -> Self {
+        Self {
+            seen: Mutex::new(HashSet::new()),
+            errors: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Visit all pages reachable from `page` within `depth` links.
+    async fn visit(
+        self: Arc<Self>,
+        page: String,
+        depth: usize,
+    ) -> Result<()> {
+        if !self.seen.lock().await.insert(page.clone()) {
+            return Ok(());
+        }
+
+        if depth == 0 {
+            return Ok(());
+        }
+
+        let subtasks = page_links(&page)
+            .await?
+            .into_iter()
+            .map(|outgoing_link| {
+                Arc::clone(&self).spawn_visit(outgoing_link, depth - 1)
+            })
+            .collect::<Vec<_>>();
+        // All subtasks are running concurrently at this point.
+        for subtask in subtasks {
+            match subtask.await {
+                Err(join_error) => self.save_error(join_error.into()).await,
+                Ok(Err(visit_error)) =>  self.save_error(visit_error).await,
+                Ok(Ok(())) => {}
+            }
+        }            
+
+        Ok(())
+    }
+
+    fn spawn_visit(
+        self: Arc<Self>,
+        page: String,
+        depth: usize,
+    ) -> tokio::task::JoinHandle<Result<()>> {
+        tokio::task::spawn(self.visit(page, depth))
+    }
+
+    async fn save_error(&self, error: anyhow::Error) {
+        self.errors.lock().await.push(error);        
+    }
 }
+
 
 #[derive(Deserialize)]
 enum Response {
