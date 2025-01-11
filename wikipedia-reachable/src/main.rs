@@ -1,15 +1,27 @@
-use anyhow::Result;
+use anyhow::{Result, Context};
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::time::{Duration, Instant};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let traversal = Arc::new(Traversal::new());
 
+    tokio::spawn(async {
+        let handle = tokio::runtime::Handle::current();
+        loop {
+            let metrics = handle.metrics();
+            eprintln!("active: {}  queue: {}",
+                      metrics.num_alive_tasks(),
+                      metrics.global_queue_depth());
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+    });
+
     let start = "Rust (programming language)".to_string();
-    Arc::clone(&traversal).visit(start.clone(), 3).await?;
+    Arc::clone(&traversal).visit(start.clone(), 2).await?;
     let traversal = Arc::into_inner(traversal).unwrap();
 
     let seen = traversal.seen.into_inner();
@@ -37,6 +49,9 @@ struct Traversal {
 
     /// Errors we've encountered when sending queries to Wikipedia.
     errors: Mutex<Vec<anyhow::Error>>,
+
+    /// The time we're next allowed to send a request.
+    next_turn: Mutex<Option<Instant>>,
 }
 
 impl Traversal {
@@ -44,6 +59,7 @@ impl Traversal {
         Self {
             seen: Mutex::new(HashSet::new()),
             errors: Mutex::new(Vec::new()),
+            next_turn: Mutex::new(None),
         }
     }
 
@@ -61,6 +77,7 @@ impl Traversal {
             return Ok(());
         }
 
+        self.wait_for_turn().await;
         let subtasks = page_links(&page)
             .await?
             .into_iter()
@@ -90,6 +107,24 @@ impl Traversal {
 
     async fn save_error(&self, error: anyhow::Error) {
         self.errors.lock().await.push(error);        
+    }
+
+    async fn wait_for_turn(&self) {
+        // https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm
+        const SPACING: Duration = Duration::from_millis(100);
+
+        let now = Instant::now();
+
+        let mut guard = self.next_turn.lock().await;
+        let Some(ref mut next_turn) = *guard else {
+            *guard = Some(now + SPACING);
+            return;
+        };
+
+        let release_time = *next_turn;
+        *next_turn = std::cmp::max(*next_turn, now) + SPACING;
+        drop(guard); // don't hold the lock while we wait
+        tokio::time::sleep_until(release_time).await;
     }
 }
 
@@ -121,18 +156,19 @@ struct ErrorResponse {
 }
 
 async fn page_links(page: &str) -> Result<Vec<String>> {
-    let url = format!(
-        "http://localhost:3000/w/api.php\
+    let url = format!("http://en.wikipedia.org/w/api.php\
                        ?action=parse&format=json&prop=links\
                        &page={page}"
     );
     eprintln!("Query: {url}");
-    let response = reqwest::get(url)
+    let response_body = reqwest::get(url)
         .await?
         .error_for_status()?
-        .json::<Response>()
+        .text()
         .await?;
-    match response {
+    let parsed = serde_json::from_str(&response_body)
+        .with_context(|| format!("Failed to parse response:\n{response_body:?}"))?;
+    match parsed {
         Response::Error(ErrorResponse { info }) => {
             anyhow::bail!("{info}")
         }

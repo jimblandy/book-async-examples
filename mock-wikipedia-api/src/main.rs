@@ -94,6 +94,10 @@ fn parse(page: String, _format: Format, _prop: Prop) -> http::Result<http::Respo
             .status(http::StatusCode::NOT_FOUND)
             .body("Injected NOT_FOUND, for testing".to_string());
     }
+    if page == "Rust (programming language)-2-1" {
+        return http::Response::builder()
+            .body(r#"{ "zloop": "murf" }"#.to_string());
+    }
 
     fn link(title: String) -> Link {
         Link {
@@ -121,7 +125,6 @@ fn parse(page: String, _format: Format, _prop: Prop) -> http::Result<http::Respo
         }
     };
     http::Response::builder()
-        .status(http::StatusCode::OK)
         .body(serde_json::to_string(&answer).unwrap())
 }
 
