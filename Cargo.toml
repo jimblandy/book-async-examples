@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "dropped-futures",
   "explicit-futures",
   "mock-wikipedia-api",
   "recursive",

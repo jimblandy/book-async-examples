@@ -19,7 +19,9 @@ fn arg_address(arg: &str) -> net::SocketAddr {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    env_logger::builder()
+        .filter(None, log::LevelFilter::Info)
+        .init();
     let args: MockWiki = argh::from_env();
 
     log::info!("Serving Mock Wikipedia API at {:?}", args.address);
