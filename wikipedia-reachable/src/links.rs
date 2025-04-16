@@ -1,8 +1,7 @@
-use anyhow::{Result, Context};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-pub enum Response {
+enum Response {
     #[serde(rename = "parse")]
     Parse(ParseResponse),
     #[serde(rename = "error")]
@@ -10,37 +9,40 @@ pub enum Response {
 }
 
 #[derive(Deserialize)]
-pub struct ParseResponse {
-    pub links: Vec<Link>,
+struct ParseResponse {
+    links: Vec<Link>,
 }
 
 #[derive(Deserialize)]
-pub struct Link {
-    pub ns: u32,
-    pub exists: Option<String>,
+struct Link {
+    ns: u32,
+    exists: Option<String>,
     #[serde(rename = "*")]
-    pub title: String,
+    title: String,
 }
 
 #[derive(Deserialize)]
-pub struct ErrorResponse {
-    pub info: String,
+struct ErrorResponse {
+    info: String,
 }
 
-pub async fn page_links(page: &str) -> Result<Vec<String>> {
-    //let url = format!("http://localhost:3000/w/api.php\
-    let url = format!("http://en.wikipedia.org/w/api.php\
-                       ?action=parse&format=json&prop=links\
-                       &page={page}"
-    );
-    eprintln!("Query: {url}");
-    let response_body = reqwest::get(url)
-        .await?
-        .error_for_status()?
-        .text()
-        .await?;
-    let parsed = serde_json::from_str(&response_body)
-        .with_context(|| format!("Failed to parse response:\n{response_body:?}"))?;
+use anyhow::{Context, Result};
+
+pub async fn page_links(title: &str) -> Result<Vec<String>> {
+    // To use the mock API server, change the below to:
+    //const SERVER: &str = "http://localhost:3000/w/api.php";
+    const SERVER: &str = "http://en.wikipedia.org/w/api.php";
+
+    let url = format!("{SERVER}?action=parse&format=json&prop=links&page={title}");
+    let parsed = reqwest::get(url)
+        .await
+        .context("Error sending request")?
+        .error_for_status()
+        .context("Error from server")?
+        .json::<Response>()
+        .await
+        .context("Error parsing response")?;
+
     match parsed {
         Response::Error(ErrorResponse { info }) => {
             anyhow::bail!("{info}")

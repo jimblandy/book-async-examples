@@ -1,9 +1,8 @@
 use wikipedia_reachable::links;
-
 use anyhow::Result;
+
 use std::collections::HashSet;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 /// A traversal of Wikipedia, starting from a given page.
 struct Traversal {
@@ -15,17 +14,35 @@ struct Traversal {
 }
 
 impl Traversal {
-    async fn save_error(&self, error: anyhow::Error) {
-        self.errors.lock().await.push(error);        
+    fn new() -> Self {
+        Self {
+            seen: Mutex::new(HashSet::new()),
+            errors: Mutex::new(Vec::new()),
+        }
     }
 
-    /// Visit all pages reachable from `page` within `depth` links.
-    async fn visit(
+    async fn save_error(&self, error: anyhow::Error) {
+        self.errors.lock().unwrap().push(error);
+    }
+}
+
+use std::sync::Arc;
+
+impl Traversal {
+    fn spawn_visit(
         self: Arc<Self>,
         page: String,
         depth: usize,
-    ) -> Result<()> {
-        if !self.seen.lock().await.insert(page.clone()) {
+        join_set: &mut tokio::task::JoinSet<Result<()>>,
+    ) {
+        join_set.spawn(self.visit(page, depth));
+    }
+}    
+
+impl Traversal {
+    /// Visit all pages reachable from `page` within `depth` links.
+    async fn visit(self: Arc<Self>, page: String, depth: usize) -> Result<()> {
+        if !self.seen.lock().unwrap().insert(page.clone()) {
             return Ok(());
         }
 
@@ -45,49 +62,31 @@ impl Traversal {
         while let Some(subtask_result) = join_set.join_next().await {
             match subtask_result {
                 Err(join_error) => self.save_error(join_error.into()).await,
-                Ok(Err(visit_error)) =>  self.save_error(visit_error).await,
+                Ok(Err(visit_error)) => self.save_error(visit_error).await,
                 Ok(Ok(())) => {}
             }
-        }            
+        }
 
         Ok(())
     }
-
-    fn spawn_visit(
-        self: Arc<Self>,
-        page: String,
-        depth: usize,
-        join_set: &mut tokio::task::JoinSet<Result<()>>,
-    ) {
-        join_set.spawn(self.visit(page, depth));
-    }
-
-    fn new() -> Self {
-        Self {
-            seen: Mutex::new(HashSet::new()),
-            errors: Mutex::new(Vec::new()),
-        }
-    }
-
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let traversal = Arc::new(Traversal::new());
 
-//    let start = "Rust (programming language)".to_string();
-    let start = "Kevin Bacon".to_string();
+    let start = "Rust (programming language)".to_string();
     Arc::clone(&traversal).visit(start.clone(), 2).await?;
 
     let traversal = Arc::into_inner(traversal).unwrap();
-    let seen = traversal.seen.into_inner();
+    let seen = traversal.seen.into_inner().unwrap();
     let mut sorted = Vec::from_iter(seen.into_iter());
     sorted.sort();
     for page in sorted {
         println!("{page}");
     }
 
-    let errors = traversal.errors.into_inner();
+    let errors = traversal.errors.into_inner().unwrap();
     if !errors.is_empty() {
         for error in &errors {
             eprintln!("{error}");

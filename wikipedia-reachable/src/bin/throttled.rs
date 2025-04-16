@@ -28,11 +28,7 @@ impl Traversal {
     }
 
     /// Visit all pages reachable from `page` within `depth` links.
-    async fn visit(
-        self: Arc<Self>,
-        page: String,
-        depth: usize,
-    ) -> Result<()> {
+    async fn visit(self: Arc<Self>, page: String, depth: usize) -> Result<()> {
         if !self.seen.lock().await.insert(page.clone()) {
             return Ok(());
         }
@@ -52,10 +48,10 @@ impl Traversal {
         while let Some(subtask_result) = join_set.join_next().await {
             match subtask_result {
                 Err(join_error) => self.save_error(join_error.into()).await,
-                Ok(Err(visit_error)) =>  self.save_error(visit_error).await,
+                Ok(Err(visit_error)) => self.save_error(visit_error).await,
                 Ok(Ok(())) => {}
             }
-        }            
+        }
 
         Ok(())
     }
@@ -70,7 +66,7 @@ impl Traversal {
     }
 
     async fn save_error(&self, error: anyhow::Error) {
-        self.errors.lock().await.push(error);        
+        self.errors.lock().await.push(error);
     }
 
     async fn wait_for_turn(&self) {
@@ -121,9 +117,11 @@ fn spawn_metrics() {
         let handle = tokio::runtime::Handle::current();
         loop {
             let metrics = handle.metrics();
-            eprintln!("active: {}  queue: {}",
-                      metrics.num_alive_tasks(),
-                      metrics.global_queue_depth());
+            eprintln!(
+                "active: {}  queue: {}",
+                metrics.num_alive_tasks(),
+                metrics.global_queue_depth()
+            );
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
     });
