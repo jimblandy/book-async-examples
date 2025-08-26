@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "async-treesitter",
   "dropped-futures",
   "explicit-futures",
   "mock-wikipedia-api",
