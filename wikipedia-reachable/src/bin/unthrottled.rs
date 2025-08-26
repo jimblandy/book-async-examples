@@ -1,5 +1,5 @@
-use wikipedia_reachable::links;
 use anyhow::Result;
+use wikipedia_reachable::links;
 
 use std::collections::HashSet;
 use std::sync::Mutex;
@@ -23,17 +23,7 @@ impl Traversal {
 }
 
 use std::sync::Arc;
-
-impl Traversal {
-    fn spawn_visit(
-        self: Arc<Self>,
-        page: String,
-        depth: usize,
-        join_set: &mut tokio::task::JoinSet<()>,
-    ) {
-        join_set.spawn(self.visit(page, depth));
-    }
-}    
+use tokio::task::JoinSet;
 
 impl Traversal {
     /// Visit all pages reachable from `page` within `depth` links.
@@ -54,11 +44,15 @@ impl Traversal {
             }
         };
 
-        let mut join_set = tokio::task::JoinSet::new();
+        let mut join_set = JoinSet::new();
         for link in links {
             Arc::clone(&self).spawn_visit(link, depth - 1, &mut join_set);
         }
         join_set.join_all().await;
+    }
+
+    fn spawn_visit(self: Arc<Self>, page: String, depth: usize, join_set: &mut JoinSet<()>) {
+        join_set.spawn(self.visit(page, depth));
     }
 }
 
@@ -71,6 +65,7 @@ async fn main() -> Result<()> {
 
     let traversal = Arc::into_inner(traversal).unwrap();
     let seen = traversal.seen.into_inner().unwrap();
+
     let mut sorted = Vec::from_iter(seen.into_iter());
     sorted.sort();
     for page in sorted {
@@ -78,10 +73,10 @@ async fn main() -> Result<()> {
     }
 
     let errors = traversal.errors.into_inner().unwrap();
+    for error in &errors {
+        eprintln!("{error}");
+    }
     if !errors.is_empty() {
-        for error in &errors {
-            eprintln!("{error}");
-        }
         anyhow::bail!("Errors occurred during traversal");
     }
 
