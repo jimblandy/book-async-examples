@@ -1,4 +1,3 @@
-use anyhow::Result;
 use argh::FromArgs;
 use warp::Filter as _;
 use warp::http;
@@ -18,7 +17,7 @@ fn arg_address(arg: &str) -> net::SocketAddr {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> anyhow::Result<()> {
     env_logger::builder()
         .filter(None, log::LevelFilter::Info)
         .init();
@@ -30,7 +29,7 @@ async fn main() -> Result<()> {
                 .and(warp::path!("v1" / "parse"))
                 .and(warp::body::content_length_limit(100 * 1024))
                 .and(warp::body::json::<ParseRust>())
-                .map(handle_parse_rust))
+                .map(parse_rust_request))
         .run(args.address)
         .await;
 
@@ -42,8 +41,26 @@ struct ParseRust {
     source: String,
 }
 
-fn handle_parse_rust(parse_rust: ParseRust) -> http::Result<http::Response<String>> {
-    log::trace!("handle_parse_rust {parse_rust:?}");
-    http::Response::builder()
-        .body(format!("yo dawg: {parse_rust:?}\n"))
+fn with_http_result(
+
+fn parse_rust_request(request: ParseRust) -> http::Result<http::Response<String>> {
+    log::trace!("handle_parse_rust {request:?}");
+
+    convert_result(parse_rust(request))
+}
+
+fn parse_rust(request: ParseRust) -> anyhow::Result<http::Response<String>> {
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&tree_sitter_rust::LANGUAGE.into())?;
+    let tree = parser.parse(&request.source, None);
+
+    let response = http::Response::builder()
+        .body(format!("yo dawg: {tree:#?}\n"))?;
+    Ok(response)
+}
+
+fn convert_result<T>(from: anyhow::Result<T>) -> http::Result<T> {
+    from.map_err(|error| {
+        
+    })
 }

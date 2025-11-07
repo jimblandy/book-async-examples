@@ -1,0 +1,13 @@
+env.CARGO_TERM_COLOR = "always"
+default_job = "serve"
+
+[jobs.serve]
+command = [
+    "cargo", "run",
+    # put launch parameters for your program behind a `--` separator
+]
+need_stdout = true
+allow_warnings = true
+background = false
+on_change_strategy = "kill_then_restart"
+env.RUST_LOG = "async_treesitter=trace"
