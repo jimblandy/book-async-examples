@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::future::Future;
 
 async fn print(message: &str) {

@@ -1,4 +1,3 @@
-use std::future::Future;
 use reqwest::Result;
 
 async fn get_text(url: &str) -> Result<String> {
