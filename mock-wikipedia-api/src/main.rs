@@ -1,7 +1,8 @@
 use anyhow::Result;
 use argh::FromArgs;
-use warp::Filter as _;
-use warp::http;
+use axum::routing::get;
+use axum::{Form, Router};
+use tokio::net::TcpListener;
 use std::net;
 use std::str::FromStr as _;
 
@@ -30,12 +31,10 @@ async fn main() -> Result<()> {
     //                    ?action=parse&format=json&prop=links\
     //                    &page={page}");
     
-    warp::serve(warp::get()
-                .and(warp::path!("w" / "api.php"))
-                .and(warp::query::<Query>())
-                .map(handle_query))
-        .run(args.address)
-        .await;
+    let listener = TcpListener::bind(args.address).await?;
+    let app = Router::new().route("/w/api.php", get(handle_query));
+    log::info!("Serving async treesitter API at {:?}", args.address);
+    axum::serve::serve(listener, app).await?;
 
     Ok(())
 }
@@ -63,7 +62,7 @@ enum Prop {
     Links,
 }
 
-fn handle_query(query: Query) -> http::Result<http::Response<String>> {
+async fn handle_query(Form(query): Form<Query>) -> http::Response<String> {
     log::trace!("handle_query {query:?}");
     match query {
         Query::Parse { format, prop, page } => parse(page, format, prop),
@@ -90,15 +89,17 @@ struct Link {
     title: String,
 }
 
-fn parse(page: String, _format: Format, _prop: Prop) -> http::Result<http::Response<String>> {
+fn parse(page: String, _format: Format, _prop: Prop) -> http::Response<String> {
     if page == "Rust (programming language)-1-2" {
         return http::Response::builder()
             .status(http::StatusCode::NOT_FOUND)
-            .body("Injected NOT_FOUND, for testing".to_string());
+            .body("Injected NOT_FOUND, for testing".to_string())
+            .expect("building response shouldn't fail");
     }
     if page == "Rust (programming language)-2-1" {
         return http::Response::builder()
-            .body(r#"{ "zloop": "murf" }"#.to_string());
+            .body(r#"{ "zloop": "murf" }"#.to_string())
+            .expect("building response shouldn't fail");
     }
 
     fn link(title: String) -> Link {
@@ -128,5 +129,6 @@ fn parse(page: String, _format: Format, _prop: Prop) -> http::Result<http::Respo
     };
     http::Response::builder()
         .body(serde_json::to_string(&answer).unwrap())
+            .expect("building response shouldn't fail")
 }
 
