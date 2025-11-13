@@ -1,19 +1,20 @@
 use std::path::PathBuf;
-use std::{net, fs};
+use std::net::SocketAddr;
+use std::fs;
 
 /// Client to talk to the async-treesitter server.
 #[derive(argh::FromArgs)]
 struct Options {
     #[argh(option, default = r#"arg_address("0.0.0.0:3000")"#)]
     /// address to listen for HTTP requests on. (Default: 0.0.0.0:3000)
-    address: net::SocketAddr,
+    address: SocketAddr,
 
     /// rust file to parse
     #[argh(positional)]
     filename: PathBuf,
 }
 
-fn arg_address(arg: &str) -> net::SocketAddr {
+fn arg_address(arg: &str) -> SocketAddr {
     arg.parse().unwrap()
 }
 
