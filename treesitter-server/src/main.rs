@@ -1,6 +1,7 @@
 use argh::FromArgs;
-use warp::Filter as _;
-use warp::http;
+use axum::routing::post;
+use axum::{Json, Router};
+use tokio::net::TcpListener;
 use std::net;
 use std::str::FromStr as _;
 
@@ -23,15 +24,10 @@ async fn main() -> anyhow::Result<()> {
         .init();
     let args: AsyncTreeSitter = argh::from_env();
 
+    let listener = TcpListener::bind(args.address).await?;
+    let app = Router::new().route("/v1/parse", post(parse_rust_request));
     log::info!("Serving async treesitter API at {:?}", args.address);
-
-    warp::serve(warp::post()
-                .and(warp::path!("v1" / "parse"))
-                .and(warp::body::content_length_limit(100 * 1024))
-                .and(warp::body::json::<ParseRust>())
-                .map(parse_rust_request))
-        .run(args.address)
-        .await;
+    axum::serve::serve(listener, app).await?;
 
     Ok(())
 }
@@ -42,23 +38,31 @@ struct ParseRust {
     timeout_seconds: f32,
 }
 
-fn parse_rust_request(request: ParseRust) -> http::Result<http::Response<String>> {
+async fn parse_rust_request(Json(request): Json<ParseRust>) -> http::Response<String> {
     log::trace!("handle_parse_rust {request:?}");
 
+    let result = tokio::task::spawn_blocking(move || {
+        parse_rust(request)
+    })
+        .await
+        .expect("task should not panic");
+
     let builder = http::Response::builder();
-    match parse_rust(request) {
+    match result {
         Ok(tree) => {
             let mut tree = tree.root_node().to_sexp();
             tree.push('\n');
             builder
                 .header("Content-Type", "application/json")
                 .body(tree)
+                .expect("building response should not fail")
         }
         Err(error) => {
             builder
                 .status(http::StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "text/plain; charset=utf-8")
                 .body(error.to_string())
+                .expect("building response should not fail")
         }
     }
 }

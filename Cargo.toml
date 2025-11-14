@@ -1,12 +1,13 @@
 [workspace]
 members = [
-  "async-treesitter",
   "dropped-futures",
   "explicit-futures",
   "mock-wikipedia-api",
   "recursive",
   "reqwest-wikipedia",
   "reqwest-wikipedia-parsed",
+  "treesitter-client",
+  "treesitter-server",
   "wikipedia-reachable",
 ]
 
