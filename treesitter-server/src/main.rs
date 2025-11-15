@@ -52,17 +52,19 @@ async fn parse_rust_request(Json(request): Json<ParseRust>) -> http::Response<St
         Ok(tree) => {
             let mut tree = tree.root_node().to_sexp();
             tree.push('\n');
+            // body() fails if some previous builder method was given invalid arguments,
+            // but we are passing valid arguments, so we can unwrap()
             builder
                 .header("Content-Type", "application/json")
                 .body(tree)
-                .expect("building response should not fail")
+                .unwrap()
         }
         Err(error) => {
             builder
                 .status(http::StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "text/plain; charset=utf-8")
                 .body(error.to_string())
-                .expect("building response should not fail")
+                .unwrap()
         }
     }
 }

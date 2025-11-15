@@ -91,15 +91,17 @@ struct Link {
 
 fn parse(page: String, _format: Format, _prop: Prop) -> http::Response<String> {
     if page == "Rust (programming language)-1-2" {
+        // body() fails if some previous builder method was given invalid arguments,
+        // but we are passing valid arguments, so we can unwrap()
         return http::Response::builder()
             .status(http::StatusCode::NOT_FOUND)
             .body("Injected NOT_FOUND, for testing".to_string())
-            .expect("building response shouldn't fail");
+            .unwrap();
     }
     if page == "Rust (programming language)-2-1" {
         return http::Response::builder()
             .body(r#"{ "zloop": "murf" }"#.to_string())
-            .expect("building response shouldn't fail");
+            .unwrap();
     }
 
     fn link(title: String) -> Link {
@@ -129,6 +131,6 @@ fn parse(page: String, _format: Format, _prop: Prop) -> http::Response<String> {
     };
     http::Response::builder()
         .body(serde_json::to_string(&answer).unwrap())
-            .expect("building response shouldn't fail")
+        .unwrap()
 }
 
